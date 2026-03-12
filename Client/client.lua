@@ -467,6 +467,7 @@ end
 -- =============================================================================
 
 if Config.Debug then
+    --[[
     RegisterCommand('sharedmap', function(source, args)
         if isMapOpen then
             CloseMap()
@@ -474,6 +475,7 @@ if Config.Debug then
             OpenMap(tonumber(args[1]) or 1)
         end
     end, false)
+    ]]
 end
 
 -- =============================================================================
