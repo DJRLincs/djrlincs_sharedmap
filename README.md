@@ -33,13 +33,15 @@ A collaborative map planning tool for **RedM** servers using [Excalidraw](https:
 
 ## Installation
 
-1. Download/clone this repository to your `resources` folder
-2. Rename the folder to `djrlincs_sharedmap` (remove any version suffix)
-3. Add to your `server.cfg`:
+1. Click the green **Code** button at the top right of this page
+2. Select **Download ZIP**
+3. Extract the ZIP to your `resources` folder
+4. Rename the extracted folder to `djrlincs_sharedmap` (remove `-main` suffix)
+5. Add to your `server.cfg`:
    ```
    ensure djrlincs_sharedmap
    ```
-4. The database table will be created automatically on first start
+6. The database table will be created automatically on first start
 
 ### Optional: High-Resolution Map Tiles
 
