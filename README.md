@@ -204,7 +204,7 @@ MIT License - See [LICENSE](LICENSE) file
 ## Support
 
 - **Issues:** Open a GitHub issue
-- **CFX Forums:** [Forum Thread Link]
+- **CFX Forums:** [Forum Thread Link](https://forum.cfx.re/t/free-djrlincs-shared-map-collaborative-in-game-map-drawing/5390299/2)
 
 ---
 
