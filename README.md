@@ -22,9 +22,9 @@ A collaborative map planning tool for **RedM** servers using [Excalidraw](https:
 - **Lock Timeout** - Edit locks auto-expire after inactivity
 - **Image Support** - Add images via URL (nuuls.com, postimg.cc, etc.)
 
-## Screenshots
+## Demo Video
 
-*Coming soon*
+[![DJRLincs Shared Map Demo](https://img.youtube.com/vi/8BFyxULqNzA/maxresdefault.jpg)](https://youtu.be/8BFyxULqNzA)
 
 ## Requirements
 
