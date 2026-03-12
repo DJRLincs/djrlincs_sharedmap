@@ -780,20 +780,30 @@ function App() {
     
     setImageUrlError('');
     
-    // URL validation - block Discord URLs (they expire after 24 hours)
+    // URL validation - block problematic domains
     const blockedDomains = [
+      // Discord - URLs expire after 24 hours (2025 policy change)
       'discord.com',
       'discordapp.com',
       'cdn.discord.com',
       'cdn.discordapp.com',
-      'media.discordapp.net'
+      'media.discordapp.net',
+      // Imgur - region blocked in some countries (UK)
+      'imgur.com',
+      'i.imgur.com'
     ];
     
     const lowerUrl = url.toLowerCase();
     
     for (const domain of blockedDomains) {
       if (lowerUrl.includes(domain)) {
-        setImageUrlError('Discord URLs are not allowed. Discord CDN links expire after 24 hours (2025 policy change). Use https://nuuls.com/ or https://imgur.com/ instead.');
+        if (domain.includes('discord')) {
+          setImageUrlError('Discord URLs are not allowed. Discord CDN links expire after 24 hours. Use https://nuuls.com/ or https://postimg.cc/ instead.');
+        } else if (domain.includes('imgur')) {
+          setImageUrlError('Imgur is blocked in some regions (UK). Use https://nuuls.com/ or https://postimg.cc/ instead.');
+        } else {
+          setImageUrlError('This image host is not supported. Use https://nuuls.com/ or https://postimg.cc/ instead.');
+        }
         return;
       }
     }
@@ -811,12 +821,11 @@ function App() {
       lowerUrl.endsWith('.png') || 
       lowerUrl.endsWith('.webp') ||
       lowerUrl.includes('nuuls.com') ||
-      lowerUrl.includes('imgur.com') ||
       lowerUrl.includes('postimg.cc') ||
       lowerUrl.includes('i.postimg.cc');
     
     if (!hasImageExtension) {
-      setImageUrlError('Please use a direct image URL (ending in .jpg, .png, .webp) or use nuuls.com, imgur.com, or postimg.cc');
+      setImageUrlError('Please use a direct image URL (ending in .jpg, .png, .webp) or use nuuls.com or postimg.cc');
       return;
     }
     

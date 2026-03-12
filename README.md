@@ -20,7 +20,7 @@ A collaborative map planning tool for **RedM** servers using [Excalidraw](https:
 - **Persistent Storage** - All drawings saved to MySQL
 - **Auto-save** - Automatic saving while editing
 - **Lock Timeout** - Edit locks auto-expire after inactivity
-- **Image Support** - Add images via URL (imgur, postimg, etc.)
+- **Image Support** - Add images via URL (nuuls.com, postimg.cc, etc.)
 
 ## Screenshots
 
@@ -188,7 +188,8 @@ djrlincs_sharedmap/
 ### Images not loading
 - Use direct image URLs (ending in .jpg, .png, .webp)
 - Don't use Discord CDN URLs (they expire after 24 hours)
-- Recommended hosts: imgur.com, postimg.cc
+- Don't use Imgur (region blocked in UK and other countries)
+- Recommended hosts: nuuls.com, postimg.cc
 
 ## Credits
 
