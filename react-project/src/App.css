@@ -1,0 +1,51 @@
+/* Minimal CSS - following docs example */
+.custom-styles .excalidraw {
+  --color-primary: #c9a227;
+  --color-primary-darker: #a88920;
+  --color-primary-darkest: #876e19;
+  --color-primary-light: #d4b84a;
+}
+
+.custom-styles .excalidraw.theme--dark {
+  --color-primary: #c9a227;
+  --color-primary-darker: #a88920;
+  --color-primary-darkest: #d4b84a;
+  --color-primary-light: #e0c966;
+}
+
+/* Hide the "More tools" dropdown button */
+.custom-styles .excalidraw .App-toolbar__extra-tools-trigger {
+  display: none !important;
+}
+
+/* Hide all dropdown menu items we don't want */
+.custom-styles .excalidraw button[data-testid="toolbar-frame"],
+.custom-styles .excalidraw button[data-testid="toolbar-embeddable"] {
+  display: none !important;
+}
+
+/* Custom laser pointer button in toolbar */
+.custom-laser-toolbar-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  margin: 0 2px;
+  background: transparent;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--icon-fill-color, #a5a5a5);
+  transition: background 0.2s, color 0.2s;
+}
+
+.custom-laser-toolbar-button:hover {
+  background: var(--button-hover-bg, rgba(255, 255, 255, 0.1));
+  color: var(--color-primary, #c9a227);
+}
+
+.custom-laser-toolbar-button:active {
+  transform: scale(0.95);
+}

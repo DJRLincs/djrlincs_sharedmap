@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DJRLincs Shared Map - Web Viewer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e;
+            color: #eee;
+            min-height: 100vh;
+        }
+        
+        .header {
+            background: #16213e;
+            padding: 12px 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 1px solid #0f3460;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        .header h1 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #e94560;
+        }
+        
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .location-select {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid #0f3460;
+            background: #1a1a2e;
+            color: #eee;
+            font-size: 14px;
+            min-width: 200px;
+            cursor: pointer;
+        }
+        
+        .location-select:focus {
+            outline: none;
+            border-color: #e94560;
+        }
+        
+        .refresh-btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            border: none;
+            background: #0f3460;
+            color: #eee;
+            font-size: 14px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .refresh-btn:hover {
+            background: #e94560;
+        }
+        
+        .status {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .status.connected {
+            color: #69db7c;
+        }
+        
+        .status.error {
+            color: #ff6b6b;
+        }
+        
+        .main-container {
+            margin-top: 60px;
+            height: calc(100vh - 60px);
+            position: relative;
+        }
+        
+        .loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #333;
+            border-top-color: #e94560;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .empty-state {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #666;
+        }
+        
+        .empty-state h2 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #888;
+        }
+        
+        .empty-state p {
+            font-size: 14px;
+        }
+        
+        .cors-warning {
+            position: fixed;
+            top: 70px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(255, 107, 107, 0.9);
+            color: #fff;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 12px;
+            z-index: 999;
+            display: none;
+        }
+        
+        #excalidraw-container {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .map-info {
+            font-size: 12px;
+            color: #888;
+        }
+        
+        .map-info strong {
+            color: #ccc;
+        }
+        
+        /* Hide Excalidraw UI elements we don't need in view mode */
+        .excalidraw .layer-ui__wrapper__top-right {
+            display: none !important;
+        }
+    </style>
+    
+    <!-- React and ReactDOM from CDN -->
+    <script src="https://unpkg.com/react@18.2.0/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18.2.0/umd/react-dom.production.min.js" crossorigin></script>
+    
+    <!-- Excalidraw from unpkg -->
+    <script src="https://unpkg.com/@excalidraw/excalidraw@0.17.6/dist/excalidraw.production.min.js" crossorigin></script>
+</head>
+</head>
+<body>
+    <div class="header">
+        <h1>🗺️ DJRLincs Shared Map Viewer</h1>
+        <div class="header-controls">
+            <select id="location-select" class="location-select">
+                <option value="">-- Select Location --</option>
+            </select>
+            <button id="refresh-btn" class="refresh-btn">🔄 Refresh</button>
+            <span id="status" class="status">Loading...</span>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div id="cors-warning" class="cors-warning">
+            ⚠️ Map tiles failed to load. Check server connection.
+        </div>
+        
+        <div id="loading" class="loading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <p>Loading map...</p>
+        </div>
+        
+        <div id="empty-state" class="empty-state">
+            <h2>Select a Location</h2>
+            <p>Choose a location from the dropdown above to view its shared map.</p>
+        </div>
+        
+        <div id="excalidraw-container" style="display: none;"></div>
+    </div>
+    
+    <div id="map-info" class="map-info" style="position: fixed; bottom: 10px; left: 10px; display: none;">
+        <span id="lock-status" style="color: #ff6b6b; margin-right: 15px; display: none;">🔒 Currently being edited by: <strong id="locked-by">-</strong></span>
+        Last edited by: <strong id="last-editor">-</strong> | 
+        Updated: <strong id="updated-at">-</strong>
+    </div>
+
+    <script>
+        // =====================================================================
+        // Configuration
+        // =====================================================================
+        const API_BASE = window.location.origin + '/' + window.location.pathname.split('/')[1];
+        console.log('SharedMap Viewer initialized. API_BASE:', API_BASE);
+        
+        // Check if required libraries loaded
+        console.log('React loaded:', typeof React !== 'undefined');
+        console.log('ReactDOM loaded:', typeof ReactDOM !== 'undefined');
+        console.log('ExcalidrawLib loaded:', typeof window.ExcalidrawLib !== 'undefined');
+        if (window.ExcalidrawLib) {
+            console.log('ExcalidrawLib contents:', Object.keys(window.ExcalidrawLib));
+        }
+        
+        // Global state
+        let excalidrawAPI = null;
+        let currentLocationName = null;
+        let currentMapType = 'main'; // 'main' or 'guarma'
+        let pollInterval = null;
+        let currentZoomLevel = 4; // Current loaded zoom level (1-6)
+        let isLoadingMap = false;
+        let tileVariant = 'detailed'; // Tile variant from config
+        const POLL_INTERVAL_MS = 10000; // Poll every 10 seconds
+        
+        // Map dimensions for each zoom level (based on tile grid size)
+        // Zoom 1 = 2 tiles, Zoom 2 = 4 tiles, etc. Each tile is 256px
+        const ZOOM_DIMENSIONS = {
+            1: { width: 512, height: 512 },
+            2: { width: 1024, height: 1024 },
+            3: { width: 2048, height: 2048 },
+            4: { width: 4096, height: 4096 },
+            5: { width: 8192, height: 8192 },
+            6: { width: 16384, height: 16384 }
+        };
+        
+        // Guarma map dimensions
+        const GUARMA_DIMENSIONS = { width: 1296, height: 1424 };
+        
+        // Excalidraw map size (consistent visual size)
+        const BASE_MAP_SIZE = 8192;
+        
+        // =====================================================================
+        // DOM Elements
+        // =====================================================================
+        const locationSelect = document.getElementById('location-select');
+        const refreshBtn = document.getElementById('refresh-btn');
+        const statusEl = document.getElementById('status');
+        const loadingEl = document.getElementById('loading');
+        const emptyStateEl = document.getElementById('empty-state');
+        const excalidrawContainer = document.getElementById('excalidraw-container');
+        const mapInfoEl = document.getElementById('map-info');
+        const lastEditorEl = document.getElementById('last-editor');
+        const updatedAtEl = document.getElementById('updated-at');
+        const lockStatusEl = document.getElementById('lock-status');
+        const lockedByEl = document.getElementById('locked-by');
+        
+        // =====================================================================
+        // API Functions
+        // =====================================================================
+        async function fetchLocations() {
+            try {
+                const response = await fetch(API_BASE + '/api/locations');
+                if (!response.ok) throw new Error('Failed to fetch locations');
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching locations:', error);
+                return [];
+            }
+        }
+        
+        // Store locations with mapType for lookup
+        let locationMapTypes = {};
+        
+        async function fetchMapData(locationName) {
+            try {
+                const encodedName = encodeURIComponent(locationName);
+                const url = API_BASE + '/api/map/' + encodedName;
+                console.log('Fetching map data from:', url);
+                const response = await fetch(url);
+                console.log('Map data response:', response.status, response.statusText);
+                if (!response.ok) {
+                    const text = await response.text();
+                    console.error('Map data error response:', text);
+                    throw new Error('Failed to fetch map data: ' + response.status);
+                }
+                return await response.json();
+            } catch (error) {
+                console.error('Error fetching map data:', error);
+                return null;
+            }
+        }
+        
+        async function fetchTileConfig() {
+            try {
+                const response = await fetch(API_BASE + '/api/tileconfig');
+                if (response.ok) {
+                    const config = await response.json();
+                    // Web viewer uses webVariant (separate from in-game variant)
+                    tileVariant = config.webVariant || config.variant || 'detailed';
+                    console.log('Tile config loaded, web variant:', tileVariant);
+                } else {
+                    console.log('Tile config response not ok, using default');
+                    tileVariant = 'detailed';
+                }
+            } catch (error) {
+                console.log('Using default tile variant (detailed):', error);
+                tileVariant = 'detailed';
+            }
+        }
+        
+        // =====================================================================
+        // Image URL Loading (for user-added images)
+        // =====================================================================
+        
+        async function fetchImageUrlsToFiles(imageUrls) {
+            const files = {};
+            
+            const fetchPromises = Object.entries(imageUrls).map(async ([id, data]) => {
+                try {
+                    const url = data.url;
+                    const mimeType = data.mimeType || 'image/png';
+                    
+                    // Skip NUI URLs - they aren't accessible from web browser
+                    if (url.startsWith('nui://')) {
+                        console.warn('Skipping NUI URL (not accessible from web):', url);
+                        return;
+                    }
+                    
+                    console.log('Fetching image:', id, url);
+                    const response = await fetch(url, { mode: 'cors' });
+                    if (!response.ok) {
+                        console.warn('Failed to fetch image', id, ':', response.status);
+                        return;
+                    }
+                    
+                    const blob = await response.blob();
+                    const dataUrl = await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                    
+                    files[id] = {
+                        id: id,
+                        dataURL: dataUrl,
+                        mimeType: mimeType,
+                        created: Date.now(),
+                        lastRetrieved: Date.now()
+                    };
+                    console.log('Loaded image:', id);
+                } catch (err) {
+                    console.warn('Failed to load image', id, ':', err);
+                }
+            });
+            
+            await Promise.all(fetchPromises);
+            return files;
+        }
+        
+        // =====================================================================
+        // Tile Loading - Uses same Rockstar CDN as in-game NUI
+        // This ensures drawings align perfectly with the map
+        // =====================================================================
+        
+        // Rockstar Social Club tile URL (same as in-game)
+        const TILE_URL = 'https://s.rsg.sc/sc/images/games/RDR2/map/game/{z}/{x}/{y}.jpg';
+        const TILE_SIZE = 256;
+        
+        // Map Excalidraw zoom to our display zoom levels (1-6)
+        function getZoomLevelForExcalidraw(excalidrawZoom) {
+            const zoomPercent = excalidrawZoom * 100;
+            if (zoomPercent >= 100) return 6;
+            if (zoomPercent >= 50) return 5;
+            if (zoomPercent >= 10) return 4;
+            return 3;
+        }
+        
+        // Load a single tile
+        async function loadTile(x, y, z) {
+            const url = TILE_URL.replace('{z}', z).replace('{x}', x).replace('{y}', y);
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => resolve(img);
+                img.onerror = () => {
+                    console.warn('Failed to load tile:', url);
+                    resolve(null); // Don't reject, just skip failed tiles
+                };
+                img.src = url;
+            });
+        }
+        
+        // Stitch all tiles for a zoom level into one canvas
+        async function loadMapCanvas(tileZoom) {
+            const numTiles = Math.pow(2, tileZoom);
+            const canvasSize = numTiles * TILE_SIZE;
+            
+            console.log(`Loading ${numTiles}x${numTiles} tiles for zoom ${tileZoom}...`);
+            
+            const canvas = document.createElement('canvas');
+            canvas.width = canvasSize;
+            canvas.height = canvasSize;
+            const ctx = canvas.getContext('2d');
+            
+            // Fill with dark background in case tiles fail
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, canvasSize, canvasSize);
+            
+            // Load tiles in parallel batches
+            const tilePromises = [];
+            for (let y = 0; y < numTiles; y++) {
+                for (let x = 0; x < numTiles; x++) {
+                    tilePromises.push(
+                        loadTile(x, y, tileZoom).then(img => ({ img, x, y }))
+                    );
+                }
+            }
+            
+            const tiles = await Promise.all(tilePromises);
+            
+            // Draw all tiles onto canvas
+            for (const { img, x, y } of tiles) {
+                if (img) {
+                    ctx.drawImage(img, x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+                }
+            }
+            
+            console.log(`Map canvas created: ${canvasSize}x${canvasSize}`);
+            return canvas;
+        }
+        
+        async function loadFullMapImage(zoomLevel) {
+            // zoomLevel is now already tile zoom level 3-6
+            const tileZoom = Math.max(3, Math.min(6, zoomLevel));
+            console.log(`Loading map at tile zoom ${tileZoom}`);
+            
+            return await loadMapCanvas(tileZoom);
+        }
+        
+        async function loadGuarmaImage() {
+            const url = API_BASE + '/api/guarmamap';
+            console.log('Loading Guarma map from:', url);
+            
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous'; // Required for canvas operations
+                img.onload = () => {
+                    console.log('Guarma map loaded successfully:', img.width, 'x', img.height);
+                    resolve(img);
+                };
+                img.onerror = (e) => {
+                    console.error('Failed to load Guarma map from:', url, e);
+                    reject(new Error('Failed to load Guarma map'));
+                };
+                img.src = url;
+            });
+        }
+        
+        async function setMapBackground(zoomLevel) {
+            if (!excalidrawAPI || isLoadingMap) {
+                console.log('setMapBackground skipped - API:', !!excalidrawAPI, 'loading:', isLoadingMap);
+                return;
+            }
+            if (currentMapType === 'guarma') return; // Guarma doesn't change with zoom
+            
+            // Don't reload if same zoom level
+            if (zoomLevel === currentZoomLevel) {
+                console.log('setMapBackground skipped - same zoom level:', zoomLevel);
+                return;
+            }
+            
+            isLoadingMap = true;
+            console.log('Loading map at zoom level', zoomLevel);
+            
+            try {
+                // loadFullMapImage now returns a canvas directly (tiles stitched together)
+                const canvas = await loadFullMapImage(zoomLevel);
+                
+                const fileId = 'full-map-bg-' + zoomLevel;
+                const dataUrl = canvas.toDataURL('image/jpeg', 0.90);
+                
+                // Add file to Excalidraw
+                excalidrawAPI.addFiles([{
+                    id: fileId,
+                    mimeType: 'image/jpeg',
+                    dataURL: dataUrl,
+                    created: Date.now()
+                }]);
+                
+                // Get current elements (excluding old map background)
+                const elements = excalidrawAPI.getSceneElements().filter(
+                    el => el.id !== 'web-viewer-map-bg'
+                );
+                
+                // Create background element centered at origin (same as in-game NUI)
+                const bgElement = {
+                    id: 'web-viewer-map-bg',
+                    type: 'image',
+                    x: -BASE_MAP_SIZE / 2,
+                    y: -BASE_MAP_SIZE / 2,
+                    width: BASE_MAP_SIZE,
+                    height: BASE_MAP_SIZE,
+                    angle: 0,
+                    strokeColor: 'transparent',
+                    backgroundColor: 'transparent',
+                    fillStyle: 'solid',
+                    strokeWidth: 0,
+                    strokeStyle: 'solid',
+                    roughness: 0,
+                    opacity: 100,
+                    groupIds: [],
+                    frameId: null,
+                    roundness: null,
+                    seed: 1,
+                    version: Date.now(),
+                    versionNonce: Math.floor(Math.random() * 1000000),
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: Date.now(),
+                    link: null,
+                    locked: true,
+                    fileId: fileId,
+                    status: 'saved',
+                    scale: [1, 1]
+                };
+                
+                // Background at the back, user elements on top
+                excalidrawAPI.updateScene({
+                    elements: [bgElement, ...elements]
+                });
+                
+                currentZoomLevel = zoomLevel;
+                console.log('Map background updated to zoom', zoomLevel);
+                
+            } catch (error) {
+                console.error('Failed to load map background:', error);
+            } finally {
+                isLoadingMap = false;
+            }
+        }
+        
+        async function setGuarmaBackground() {
+            if (!excalidrawAPI) return;
+            isLoadingMap = true;
+            
+            try {
+                const img = await loadGuarmaImage();
+                
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                
+                const fileId = 'guarma-map-bg';
+                const dataUrl = canvas.toDataURL('image/webp', 0.95);
+                
+                excalidrawAPI.addFiles([{
+                    id: fileId,
+                    mimeType: 'image/webp',
+                    dataURL: dataUrl,
+                    created: Date.now()
+                }]);
+                
+                // Calculate dimensions maintaining aspect ratio
+                const aspectRatio = GUARMA_DIMENSIONS.width / GUARMA_DIMENSIONS.height;
+                let mapWidth, mapHeight;
+                const mapSize = 6000; // Guarma is smaller than main map
+                
+                if (aspectRatio > 1) {
+                    mapWidth = mapSize;
+                    mapHeight = mapSize / aspectRatio;
+                } else {
+                    mapHeight = mapSize;
+                    mapWidth = mapSize * aspectRatio;
+                }
+                
+                const elements = excalidrawAPI.getSceneElements().filter(
+                    el => el.id !== 'web-viewer-map-bg'
+                );
+                
+                const bgElement = {
+                    id: 'web-viewer-map-bg',
+                    type: 'image',
+                    x: -mapWidth / 2,
+                    y: -mapHeight / 2,
+                    width: mapWidth,
+                    height: mapHeight,
+                    angle: 0,
+                    strokeColor: 'transparent',
+                    backgroundColor: 'transparent',
+                    fillStyle: 'solid',
+                    strokeWidth: 0,
+                    strokeStyle: 'solid',
+                    roughness: 0,
+                    opacity: 100,
+                    groupIds: [],
+                    frameId: null,
+                    roundness: null,
+                    seed: 1,
+                    version: Date.now(),
+                    versionNonce: Math.floor(Math.random() * 1000000),
+                    isDeleted: false,
+                    boundElements: null,
+                    updated: Date.now(),
+                    link: null,
+                    locked: true,
+                    fileId: fileId,
+                    status: 'saved',
+                    scale: [1, 1]
+                };
+                
+                excalidrawAPI.updateScene({
+                    elements: [bgElement, ...elements]
+                });
+                
+                console.log('Guarma map background loaded');
+                
+            } catch (error) {
+                console.error('Failed to load Guarma map:', error);
+            } finally {
+                isLoadingMap = false;
+            }
+        }
+        
+        // =====================================================================
+        // Excalidraw Setup
+        // =====================================================================
+        function initExcalidraw(sceneData, mapType) {
+            // Check if Excalidraw loaded
+            if (!window.ExcalidrawLib) {
+                console.error('ExcalidrawLib not loaded! Check CDN connection.');
+                setStatus('Failed to load Excalidraw library', 'error');
+                return;
+            }
+            
+            const { Excalidraw } = window.ExcalidrawLib;
+            if (!Excalidraw) {
+                console.error('Excalidraw component not found in ExcalidrawLib');
+                return;
+            }
+            
+            currentMapType = mapType || 'main';
+            console.log('Initializing Excalidraw for mapType:', currentMapType);
+            
+            let parsedData = { elements: [], appState: {} };
+            try {
+                if (sceneData && sceneData !== '{}') {
+                    // Try to sanitize the JSON string before parsing
+                    const sanitized = sceneData.replace(/[\x00-\x1F\x7F]/g, '');
+                    parsedData = JSON.parse(sanitized);
+                }
+            } catch (e) {
+                console.error('Failed to parse scene data:', e);
+            }
+            
+            // Extract inline files from scene data (base64 images)
+            // Convert to Excalidraw format with required fields
+            const rawFiles = parsedData.files || {};
+            const files = {};
+            for (const [id, fileData] of Object.entries(rawFiles)) {
+                files[id] = {
+                    id: id,
+                    dataURL: fileData.dataURL,
+                    mimeType: fileData.mimeType || 'image/png',
+                    created: Date.now(),
+                    lastRetrieved: Date.now()
+                };
+            }
+            const hasFiles = Object.keys(files).length > 0;
+            if (hasFiles) {
+                console.log('Found inline files:', Object.keys(files).length);
+            }
+            
+            // Extract imageUrls (URL references) - will be loaded async
+            const imageUrls = parsedData.imageUrls || {};
+            const hasImageUrls = Object.keys(imageUrls).length > 0;
+            if (hasImageUrls) {
+                console.log('Found imageUrls to load:', Object.keys(imageUrls).length);
+            }
+            
+            // Filter out old background elements
+            const userElements = (parsedData.elements || []).filter(
+                el => el.id !== 'web-viewer-map-bg' && 
+                      el.id !== 'rdr2-map-background' && 
+                      el.id !== 'guarma-map-background' &&
+                      !String(el.id).startsWith('chunk-') &&
+                      !String(el.id).startsWith('tile-chunk-')
+            );
+            
+            const App = () => {
+                const [apiReady, setApiReady] = React.useState(false);
+                
+                // Callback when Excalidraw API is ready
+                const onExcalidrawAPI = (api) => {
+                    console.log('Excalidraw API callback received');
+                    excalidrawAPI = api;
+                    setApiReady(true);
+                };
+                
+                React.useEffect(() => {
+                    if (!apiReady || !excalidrawAPI) return;
+                    
+                    console.log('Excalidraw API ready, loading map...');
+                    currentZoomLevel = 0; // Force initial load
+                    
+                    // Add inline files (base64 images) to Excalidraw
+                    if (hasFiles) {
+                        console.log('Adding', Object.keys(files).length, 'inline images');
+                        excalidrawAPI.addFiles(Object.values(files));
+                    }
+                    
+                    // Load images from URLs (async)
+                    if (hasImageUrls) {
+                        fetchImageUrlsToFiles(imageUrls).then(loadedFiles => {
+                            if (Object.keys(loadedFiles).length > 0) {
+                                console.log('Adding', Object.keys(loadedFiles).length, 'images from URLs');
+                                excalidrawAPI.addFiles(Object.values(loadedFiles));
+                            }
+                        });
+                    }
+                    
+                    // Load initial map background
+                    if (currentMapType === 'guarma') {
+                        setGuarmaBackground();
+                    } else {
+                        setMapBackground(4); // Start at zoom 4
+                    }
+                }, [apiReady]);
+                
+                return React.createElement(Excalidraw, {
+                    excalidrawAPI: onExcalidrawAPI,
+                    initialData: {
+                        elements: userElements,
+                        appState: {
+                            viewBackgroundColor: '#fdfdfd',
+                            zoom: { value: 0.3 },
+                            ...parsedData.appState
+                        },
+                        files: files
+                    },
+                    viewModeEnabled: true,
+                    zenModeEnabled: false,
+                    gridModeEnabled: false,
+                    onChange: debounce((elements, appState) => {
+                        // Update map background when zoom changes (main map only)
+                        if (currentMapType !== 'guarma' && appState && appState.zoom) {
+                            const newZoomLevel = getZoomLevelForExcalidraw(appState.zoom.value);
+                            if (newZoomLevel !== currentZoomLevel) {
+                                setMapBackground(newZoomLevel);
+                            }
+                        }
+                    }, 300)
+                });
+            };
+            
+            const root = ReactDOM.createRoot(excalidrawContainer);
+            root.render(React.createElement(App));
+        }
+        
+        // =====================================================================
+        // UI Functions
+        // =====================================================================
+        function showLoading() {
+            loadingEl.style.display = 'block';
+            emptyStateEl.style.display = 'none';
+            excalidrawContainer.style.display = 'none';
+            mapInfoEl.style.display = 'none';
+        }
+        
+        function showEmptyState() {
+            loadingEl.style.display = 'none';
+            emptyStateEl.style.display = 'block';
+            excalidrawContainer.style.display = 'none';
+            mapInfoEl.style.display = 'none';
+        }
+        
+        function showExcalidraw() {
+            loadingEl.style.display = 'none';
+            emptyStateEl.style.display = 'none';
+            excalidrawContainer.style.display = 'block';
+            mapInfoEl.style.display = 'block';
+        }
+        
+        function setStatus(text, type = '') {
+            statusEl.textContent = text;
+            statusEl.className = 'status ' + type;
+        }
+        
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+        
+        // =====================================================================
+        // Event Handlers
+        // =====================================================================
+        async function loadLocations() {
+            setStatus('Loading locations...');
+            const locations = await fetchLocations();
+            
+            // Clear existing options
+            locationSelect.innerHTML = '<option value="">-- Select Location --</option>';
+            
+            if (locations.length === 0) {
+                setStatus('No locations found', 'error');
+                return;
+            }
+            
+            locations.forEach(loc => {
+                const option = document.createElement('option');
+                option.value = loc.name;
+                option.textContent = loc.name;
+                locationSelect.appendChild(option);
+                // Store mapType for each location
+                locationMapTypes[loc.name] = loc.mapType || 'main';
+            });
+            
+            setStatus('Ready', 'connected');
+        }
+        
+        async function loadSelectedMap() {
+            const locationName = locationSelect.value;
+            
+            if (!locationName) {
+                showEmptyState();
+                currentLocationName = null;
+                stopPolling();
+                return;
+            }
+            
+            showLoading();
+            setStatus('Loading map...');
+            currentLocationName = locationName;
+            
+            const mapData = await fetchMapData(locationName);
+            
+            if (!mapData) {
+                setStatus('Failed to load map', 'error');
+                showEmptyState();
+                stopPolling();
+                return;
+            }
+            
+            // Update info
+            lastEditorEl.textContent = mapData.lastEditor || 'Unknown';
+            updatedAtEl.textContent = mapData.updatedAt || '-';
+            
+            // Update lock status
+            updateLockStatus(mapData.isLocked, mapData.lockedByName);
+            
+            // Reset zoom level for fresh load
+            currentZoomLevel = 0;
+            
+            // Determine map type (from server response or fallback to locations lookup)
+            const mapType = mapData.mapType || locationMapTypes[locationName] || 'main';
+            console.log('Loading map:', locationName, 'mapType:', mapType);
+            
+            // Initialize Excalidraw with map data and map type
+            showExcalidraw();
+            initExcalidraw(mapData.excalidrawData, mapType);
+            
+            setStatus('Viewing: ' + locationName, 'connected');
+            
+            // Start polling for updates
+            startPolling();
+        }
+        
+        function updateLockStatus(isLocked, lockedByName) {
+            if (isLocked && lockedByName) {
+                lockStatusEl.style.display = 'inline';
+                lockedByEl.textContent = lockedByName;
+            } else {
+                lockStatusEl.style.display = 'none';
+                lockedByEl.textContent = '-';
+            }
+        }
+        
+        function startPolling() {
+            stopPolling();
+            pollInterval = setInterval(pollForUpdates, POLL_INTERVAL_MS);
+        }
+        
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+        
+        async function pollForUpdates() {
+            if (!currentLocationName) return;
+            
+            try {
+                const mapData = await fetchMapData(currentLocationName);
+                if (mapData) {
+                    // Update lock status
+                    updateLockStatus(mapData.isLocked, mapData.lockedByName);
+                    
+                    // Update last editor info
+                    lastEditorEl.textContent = mapData.lastEditor || 'Unknown';
+                    updatedAtEl.textContent = mapData.updatedAt || '-';
+                }
+            } catch (e) {
+                console.error('Poll failed:', e);
+            }
+        }
+        
+        // =====================================================================
+        // Initialize
+        // =====================================================================
+        locationSelect.addEventListener('change', loadSelectedMap);
+        refreshBtn.addEventListener('click', () => {
+            if (currentLocationName) {
+                loadSelectedMap();
+            } else {
+                loadLocations();
+            }
+        });
+        
+        // Initial load
+        fetchTileConfig().then(() => loadLocations());
+    </script>
+</body>
+</html>
