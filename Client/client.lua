@@ -9,6 +9,8 @@ local isEditing = false
 local nearAccessPoint = false
 local currentAccessIndex = nil
 local cachedPlayerJob = nil
+local activeMapCard = nil
+local mapCardSequence = 0
 
 -- Prompt groups
 local promptGroup = GetRandomIntInRange(0, 0xFFFFFF)
@@ -17,6 +19,131 @@ local promptEdit = nil
 
 -- Forward declaration for RefreshBlipsOnJobChange (defined in BLIP section)
 local RefreshBlipsOnJobChange
+
+-- =============================================================================
+-- NATIVE MAP CARD HELPERS (BLIP INFO PANEL)
+-- =============================================================================
+
+local function CleanupActiveMapCard()
+    if not activeMapCard then return end
+
+    local mapHash = joaat("Map")
+    RequestUiappTransitionByHash(mapHash, joaat("hide_info"))
+
+    if activeMapCard.rootContainer then
+        DatabindingClearBindingArray(activeMapCard.rootContainer)
+    end
+    if activeMapCard.blipContainer then
+        DatabindingRemoveDataEntry(activeMapCard.blipContainer)
+    end
+    if activeMapCard.imageTxdHash then
+        SetStreamedTxdAsNoLongerNeeded(activeMapCard.imageTxdHash)
+    end
+
+    activeMapCard = nil
+end
+
+local function EnsureMapUiReady(timeoutMs)
+    local mapHash = joaat("Map")
+    local timeout = timeoutMs or 4000
+
+    if IsUiappActiveByHash(mapHash) == 0 then
+        LaunchUiappByHash(mapHash)
+    end
+
+    local waited = 0
+    while IsUiappRunningByHash(mapHash) == 0 and waited < timeout do
+        Wait(100)
+        waited = waited + 100
+    end
+
+    return IsUiappRunningByHash(mapHash) == 1
+end
+
+local function ShowLocationMapCard(location)
+    if not location or not Config.BlipCard or not Config.BlipCard.enabled then
+        return
+    end
+
+    local card = location.blipCard
+    if not card or card.enabled == false then
+        return
+    end
+
+    if not EnsureMapUiReady(4000) then
+        if Config.Debug then
+            print("^1[DJRLincs-SharedMap] Could not open native map UI for card^0")
+        end
+        return
+    end
+
+    CleanupActiveMapCard()
+
+    mapCardSequence = mapCardSequence + 1
+
+    local titleText = card.title or location.name or "Map Board"
+    local subTitleText = card.subTitle or ""
+    local descText = card.description or ("Information for " .. (location.name or "area"))
+
+    local descKey = string.format("DJR_CARD_DESC_%d", mapCardSequence)
+    local titleKey = string.format("DJR_CARD_TITLE_%d", mapCardSequence)
+    local subKey = string.format("DJR_CARD_SUB_%d", mapCardSequence)
+
+    AddTextEntry(descKey, descText)
+    AddTextEntry(titleKey, titleText)
+    AddTextEntry(subKey, subTitleText)
+
+    local imageTxdName = card.imageTxd or Config.BlipCard.fallbackImageTxd
+    local imageTxName = card.imageTx or Config.BlipCard.fallbackImageTx or imageTxdName
+    local imageTxdHash = imageTxdName and joaat(imageTxdName) or nil
+    local imageTxHash = imageTxName and joaat(imageTxName) or nil
+
+    if imageTxdHash and DoesStreamedTxdExist(imageTxdHash) ~= 1 then
+        RequestStreamedTxd(imageTxdHash, false)
+        local waited = 0
+        while DoesStreamedTxdExist(imageTxdHash) ~= 1 and waited < 2000 do
+            Wait(50)
+            waited = waited + 50
+        end
+    end
+
+    local rootContainer = DatabindingAddUiItemListFromPath("", "MapFocus")
+    DatabindingAddDataString(rootContainer, "Region", "")
+    DatabindingAddDataBool(rootContainer, "ItemHovered", true)
+    DatabindingAddDataString(rootContainer, "HoveredName", "")
+    TextBlockRequest("FMMC")
+
+    local blipContainer = DatabindingAddDataContainer(rootContainer, "BLIP")
+    DatabindingAddDataHash(blipContainer, "name", joaat(titleKey))
+    DatabindingAddDataHash(blipContainer, "description", joaat(descKey))
+    DatabindingAddDataHash(blipContainer, "description_title", joaat(subKey))
+
+    if imageTxdHash and imageTxHash and DoesStreamedTxdExist(imageTxdHash) == 1 then
+        DatabindingAddDataHash(blipContainer, "imageTXD", imageTxdHash)
+        DatabindingAddDataHash(blipContainer, "imageTX", imageTxHash)
+    end
+
+    DatabindingAddDataHash(blipContainer, "hint_name", Config.BlipCard.hintNameHash or 1544592360)
+    DatabindingAddDataString(blipContainer, "hint_value", "")
+    DatabindingInsertUiItemToListFromContextStringAlias(rootContainer, -1, "map_card_mission", blipContainer)
+    RequestUiappTransitionByHash(joaat("Map"), joaat("show_info"))
+
+    activeMapCard = {
+        rootContainer = rootContainer,
+        blipContainer = blipContainer,
+        imageTxdHash = imageTxdHash,
+        sequence = mapCardSequence,
+    }
+
+    local displayMs = (card.displayMs or Config.BlipCard.displayMs or 6000)
+    CreateThread(function()
+        local thisSequence = mapCardSequence
+        Wait(displayMs)
+        if activeMapCard and activeMapCard.sequence == thisSequence then
+            CleanupActiveMapCard()
+        end
+    end)
+end
 
 -- =============================================================================
 -- JOB/PERMISSION HELPERS
@@ -147,6 +274,9 @@ CreateThread(function()
             -- Check for prompt press (matching vorp_stores: second param = 0)
             if PromptHasStandardModeCompleted(promptView, 0) then
                 Wait(100)
+                if Config.BlipCard and Config.BlipCard.enabled and Config.BlipCard.showOnPrompt and currentAccessIndex then
+                    ShowLocationMapCard(Config.AccessLocations[currentAccessIndex])
+                end
                 OpenMap()
             end
         end
@@ -353,6 +483,15 @@ RegisterNUICallback('createMap', function(data, cb)
     cb('ok')
 end)
 
+RegisterNetEvent('djrlincs_sharedmap:showLocationCard')
+AddEventHandler('djrlincs_sharedmap:showLocationCard', function(locationIndex)
+    local idx = tonumber(locationIndex) or currentAccessIndex
+    if not idx or not Config.AccessLocations[idx] then
+        return
+    end
+    ShowLocationMapCard(Config.AccessLocations[idx])
+end)
+
 -- =============================================================================
 -- BLIPS
 -- Matching vorp_stores implementation for proper blip display
@@ -395,7 +534,7 @@ local function CreateLocationBlips()
                 
                 -- Set blip sprite (use false for third param like vorp_stores)
                 local sprite = GetBlipSprite(location.blipSprite or Config.DefaultBlipSprite or 1047294027) -- Default: Sheriff badge
-                SetBlipSprite(blip, sprite, false)
+                SetBlipSprite(blip, sprite)
                 
                 -- Set blip scale if configured
                 local scale = location.blipScale or Config.DefaultBlipScale or 0.2
@@ -467,15 +606,22 @@ end
 -- =============================================================================
 
 if Config.Debug then
-    --[[
     RegisterCommand('sharedmap', function(source, args)
         if isMapOpen then
             CloseMap()
         else
-            OpenMap(tonumber(args[1]) or 1)
+            OpenMap()
         end
     end, false)
-    ]]
+
+    RegisterCommand('sharedmap_card', function(source, args)
+        local idx = tonumber(args[1]) or currentAccessIndex or 1
+        if Config.AccessLocations[idx] then
+            ShowLocationMapCard(Config.AccessLocations[idx])
+        else
+            print("^1[DJRLincs-SharedMap] Invalid location index for sharedmap_card^0")
+        end
+    end, false)
 end
 
 -- =============================================================================
@@ -484,6 +630,7 @@ end
 
 AddEventHandler('onResourceStop', function(resourceName)
     if resourceName == GetCurrentResourceName() then
+        CleanupActiveMapCard()
         if isMapOpen then
             SetNuiFocus(false, false)
         end

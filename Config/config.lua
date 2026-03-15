@@ -15,6 +15,43 @@ Config.DefaultBlipSprite = 1047294027  -- Sheriff badge (numeric hash)
 Config.DefaultBlipScale = 0.2           -- 0.1 to 1.0
 Config.DefaultBlipColor = "BLIP_MODIFIER_MP_COLOR_6" -- Sheriff blue
 
+-------------------------------------------------------------------------------
+-- OPTIONAL NATIVE MAP CARD (BLIP INFO PANEL)
+-- Shows Rockstar-style map info card with title/subtitle/description/image.
+-- Image uses streamed TXD/TX names (not URLs).
+-------------------------------------------------------------------------------
+Config.BlipCard = {
+    enabled = true,
+    showOnPrompt = false, -- If true, shows card before opening shared map prompt flow
+    displayMs = 6000, -- Auto-hide card after this many ms
+    fallbackImageTxd = "ZONE_ANNESBURG",
+    fallbackImageTx = "ZONE_ANNESBURG",
+    hintNameHash = 1544592360,
+}
+
+-------------------------------------------------------------------------------
+-- BLIP CARD IMAGE HELPERS (TXD/TX)
+-- Copy these into location.blipCard.imageTxd / imageTx.
+-- Example:
+--   imageTxd = Config.BlipCardZones.VALENTINE
+--   imageTx  = Config.BlipCardZones.VALENTINE
+-------------------------------------------------------------------------------
+Config.BlipCardZones = {
+    ANNESBURG = "ZONE_ANNESBURG",
+    ARMADILLO = "ZONE_ARMADILLO",
+    BLACKWATER = "ZONE_BLACKWATER",
+    BRAITHWAITE = "ZONE_BRAITHWAITE",
+    CALIGA_HALL = "ZONE_CALIGA_HALL",
+    EMERALD_RANCH = "ZONE_EMERALDRANCH",
+    MANZANITA = "ZONE_MANZANITA",
+    RHODES = "ZONE_RHODES",
+    SAINT_DENIS = "ZONE_STDENIS",
+    STRAWBERRY = "ZONE_STRAWBERRY",
+    TUMBLEWEED = "ZONE_TUMBLEWEED",
+    VALENTINE = "ZONE_VALENTINE",
+    VAN_HORN = "ZONE_VANHORN",
+}
+
 -- Common sprite hashes:
 --   1047294027  = Sheriff badge
 --   1475879922  = General store
@@ -75,6 +112,15 @@ Config.AccessLocations = {
         allowedJobs = { "sheriff", "deputy" },
         -- Per-board webhook (optional - uses master if empty)
         webhook = "",
+        -- Optional native map card (area-specific image/text)
+        blipCard = {
+            enabled = true,
+            title = "Valentine Sheriff Board",
+            subTitle = "New Hanover",
+            description = "Law routes, patrol notes, and active incidents.",
+            imageTxd = "ZONE_VALENTINE",
+            imageTx = "ZONE_VALENTINE",
+        },
     },
     {
         name = "Rhodes Sheriff Office",
@@ -90,6 +136,14 @@ Config.AccessLocations = {
         viewRestrictedJobs = { "sheriff", "deputy" }, -- Same view restriction
         allowedJobs = { "sheriff", "deputy" }, -- Same board, same job restrictions
         webhook = "", -- Same board shares the webhook from first location
+        blipCard = {
+            enabled = true,
+            title = "Rhodes Sheriff Board",
+            subTitle = "Lemoyne",
+            description = "Patrol routes and county updates for Rhodes district.",
+            imageTxd = "ZONE_RHODES",
+            imageTx = "ZONE_RHODES",
+        },
     },
     {
         name = "Blackwater Offices",
@@ -105,6 +159,14 @@ Config.AccessLocations = {
         -- viewRestrictedJobs = nil,               -- Everyone can VIEW (see prompt/blip)
         allowedJobs = { "marshal", "sheriff", "lawman" },     -- But only these can EDIT
         webhook = "", -- Uses master webhook
+        blipCard = {
+            enabled = true,
+            title = "Blackwater Board",
+            subTitle = "West Elizabeth",
+            description = "Operations and planning notes for Blackwater offices.",
+            imageTxd = "ZONE_BLACKWATER",
+            imageTx = "ZONE_BLACKWATER",
+        },
     },
     {
         name = "Pirates of Guarma",
@@ -120,6 +182,14 @@ Config.AccessLocations = {
         -- viewRestrictedJobs = nil,               -- Everyone can view
         allowedJobs = {},                          -- Anyone can edit (test board)
         webhook = "",
+        blipCard = {
+            enabled = true,
+            title = "Guarma Board",
+            subTitle = "Pirates",
+            description = "Guarma routes, ambush plans, and supply notes.",
+            imageTxd = "ZONE_ANNESBURG", -- Fallback-like image if Guarma TXD is not available
+            imageTx = "ZONE_ANNESBURG",
+        },
     },
     -- Example: No blip, just a prompt when nearby (blipSprite/Scale/Color not needed)
     -- {
